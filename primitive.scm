@@ -1,0 +1,1117 @@
+(define apply-code
+	(string-append 
+	"APPLY:
+	PUSH(FP);
+	MOV(FP,SP);
+	CMP(FPARG(1),IMM(2));
+	JUMP_LT(L_error_lambda_args_count);
+	MOV(R1,FPARG(2)); //THE PROC
+	//MOV(R0,FPARG(3)); //THE LIST
+	MOV(R4,FPARG(1)); //NUMBER OF ARGUMENTS;
+	INCR(R4); //THE FIRST NON PROCEDURE ARGUMENT
+	MOV(R5,FPARG(R4)); //THE LIST
+	DECR(R4);
+	MAKE_APPLY_LIST_LOOP:
+		CMP(R4,2);
+		JUMP_EQ(AFTER_MAKE_APPLY_LIST_LOOP);
+		MOV(R6,FPARG(R4));
+		PUSH(R5);
+		PUSH(R6);
+		PUSH(2);
+		PUSH(666);
+		CALL(CONS);
+		DROP(4);
+		MOV(R5,R0);
+		DECR(R4);
+		JUMP(MAKE_APPLY_LIST_LOOP);
+	AFTER_MAKE_APPLY_LIST_LOOP:
+	MOV(R0,R5);
+
+
+	MOV(R2,FPARG(-2)); //old fp
+	MOV(R3,0);
+	MOV(R10,4);
+	ADD(R10,FPARG(1));
+	MOV(R9,FPARG(-1)); // THE RETURN ADDRESS.
+	DROP(R10); // CLEAR THE FRAME OF APPLY.
+
+	APPLY_PUSH_ARGS_LOOP:
+
+		CMP(IND(R0),T_NIL);
+		JUMP_EQ(APPLY_PUSH_ARGS_END);
+		INCR(R3);
+		PUSH(INDD(R0,1));
+		MOV(R0,INDD(R0,2));
+		JUMP(APPLY_PUSH_ARGS_LOOP);
+	APPLY_PUSH_ARGS_END:
+	//NOW WE HAVE TO APPLIC THE LAMBDA CORRECTLY
+	
+	MOV(R4,SP);
+	SUB(R4,R3); //LAST ARGUMENT
+	MOV(R5,SP);
+	DECR(R5); //FIRST ARGUMENT
+	REVERSE_ARGUMENTS_LOOP:
+		CMP(R4,R5);
+		JUMP_GE(END_REVERSE_ARGUMENTS_LOOP);
+		MOV(R6,STACK(R5));
+		MOV(STACK(R5),STACK(R4));
+		MOV(STACK(R4),R6); //SWAP
+		INCR(R4);
+		DECR(R5);
+		JUMP(REVERSE_ARGUMENTS_LOOP);
+	END_REVERSE_ARGUMENTS_LOOP:
+
+	PUSH(R3); //PUSH N
+
+	MOV(R0,R1);
+	PUSH(INDD(R0,1)); //ENV
+
+	PUSH (R9);
+
+	MOV(FP,R2);
+	MOV(R0,INDD(R1,2));
+
+	JUMPA(INDD(R1,2));
+	"))
+
+(define cdr-code (string-append
+"CDR:
+  PUSH(FP); 
+  MOV(FP, SP);
+  CMP(FPARG(1),IMM(1)); //check if the number of arguments is 1.
+  JUMP_NE(L_error_lambda_args_count);
+  MOV(R1,FPARG(2)); //get the argument.
+  CMP(IND(R1), IMM(885397)); //check if the argument is a pair.
+
+  JUMP_NE(L_NOT_PAIR);
+  MOV(R0,INDD(R1,IMM(2))); //get the second member if the pair.
+  POP(FP);
+  RETURN" ))
+
+(define cons-code
+	(string-append
+
+"CONS:
+  PUSH(FP);
+  MOV(FP, SP);
+  PUSH(IMM(3));
+  CALL(MALLOC);
+  DROP(IMM(1));
+  MOV(IND(R0), IMM(885397)); // put T_PAIR at the first malloc mem.
+  CMP(FPARG(1),IMM(2)); //check if the number of arguments is 2.
+  JUMP_NE(L_error_lambda_args_count);
+  MOV(INDD(R0, 1), FPARG(2)); // put the first argument at the second malloc mem.
+  MOV(INDD(R0, 2), FPARG(3)); // put the second argument at the third malloc mem.
+  POP(FP);
+  RETURN;"))
+
+(define car-code
+(string-append
+
+"CAR:
+  PUSH(FP);
+  MOV(FP, SP);
+  CMP(FPARG(1),IMM(1)); //check if the number of arguments is 1.
+  JUMP_NE(L_error_lambda_args_count);
+  MOV(R1,FPARG(2)); //get the argument.
+		
+  CMP(IND(R1), IMM(885397)); //check if the argument is a pair.
+  JUMP_NE(L_NOT_PAIR);
+  MOV(R0,INDD(R1,IMM(1))); //get the first member if the pair.
+  POP(FP);
+  RETURN;"))
+
+(define bin+-code
+	(string-append
+"BIN_PLUS:
+	PUSH(FP);
+	MOV(FP,SP);
+	MOV(R0,FPARG(2));
+	MOV(R1,FPARG(3));
+	MOV(R0,INDD(R0,1));
+	MOV(R1,INDD(R1,1));
+	ADD(R0,R1);
+	PUSH(R0);
+	CALL(MAKE_SOB_INTEGER);
+	DROP(1);
+	POP(FP);
+	RETURN;
+
+
+	"))
+
+(define bin*-code
+	(string-append
+"BIN_MUL:
+	PUSH(FP);
+	MOV(FP,SP);
+	MOV(R0,FPARG(2));
+	MOV(R1,FPARG(3));
+	MOV(R0,INDD(R0,1));
+	MOV(R1,INDD(R1,1));
+	MUL(R0,R1);
+	PUSH(R0);
+	CALL(MAKE_SOB_INTEGER);
+	DROP(1);
+	POP(FP);
+	RETURN;
+	"))
+
+(define bin>-code
+	(string-append
+"GRATER_THAN:
+	PUSH(FP);
+	MOV(FP,SP);
+	MOV(R0,FPARG(2));
+	MOV(R1,FPARG(3));
+	MOV(R0,INDD(R0,1));
+	MOV(R1,INDD(R1,1));
+	CMP(R0,R1);
+	JUMP_GT(IS_GREATER_THAN_TRUE);
+	MOV(R2,0);
+	JUMP(CREATE_GREATER_THAN_ANSWER)
+	IS_GREATER_THAN_TRUE:
+	MOV(R2,1)
+	CREATE_GREATER_THAN_ANSWER:
+	PUSH(R2);
+	CALL(MAKE_SOB_BOOL);
+	DROP(1);
+	POP(FP);
+	RETURN;
+
+
+	"))
+
+(define bin<-code
+	(string-append
+"LESS_THAN:
+	PUSH(FP);
+	MOV(FP,SP);
+	MOV(R0,FPARG(2));
+	MOV(R1,FPARG(3));
+	MOV(R0,INDD(R0,1));
+	MOV(R1,INDD(R1,1));
+	CMP(R0,R1);
+	JUMP_LT(IS_LESS_THAN_TRUE);
+	MOV(R2,0);
+	JUMP(CREATE_LESS_THAN_ANSWER)
+	IS_LESS_THAN_TRUE:
+	MOV(R2,1)
+	CREATE_LESS_THAN_ANSWER:
+	PUSH(R2);
+	CALL(MAKE_SOB_BOOL);
+	DROP(1);
+	POP(FP);
+	RETURN;
+
+	"))
+
+(define bin--code
+	(string-append
+		"
+		BIN_MINUS:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R1,FPARG(2));
+		MOV(R1,INDD(R1,1));
+		MOV(R2,FPARG(3));
+		MOV(R2,INDD(R2,1));
+		SUB(R1,R2);
+		MOV(R0,R1);
+		PUSH(R0);
+		CALL(MAKE_SOB_INTEGER);
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+		"))
+
+(define bin/-code
+	(string-append
+		"
+		BIN_DIV:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R1,FPARG(2));
+		MOV(R1,INDD(R1,1));
+		MOV(R2,FPARG(3));
+		MOV(R2,INDD(R2,1));
+		DIV(R1,R2);
+		MOV(R0,R1);
+		PUSH(R0);
+		CALL(MAKE_SOB_INTEGER);
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+		"))
+(define bin=-code
+	(string-append
+		"
+		BIN_EQUAL:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R1,FPARG(2));
+		MOV(R1,INDD(R1,1));
+		MOV(R2,FPARG(3));
+		MOV(R2,INDD(R2,1));
+		CMP(R1,R2);
+		JUMP_NE(L_NOT_EQUAL_BIN);
+		PUSH(IMM(1));
+		CALL(MAKE_SOB_BOOL);
+		JUMP(AFTER_MAKE_BOOL_BIN)
+L_NOT_EQUAL_BIN:
+		PUSH(IMM(0))
+		CALL(MAKE_SOB_BOOL);
+AFTER_MAKE_BOOL_BIN:
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+		"))
+
+(define IS_NULL-code
+	(string-append
+		"
+
+		IS_NULL:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R0,FPARG(2));
+
+		CMP(R0, SOB_NIL);
+		JUMP_EQ(L_EQUAL_IS_NULL);
+		CMP(IND(R0),T_NIL);
+		JUMP_EQ(L_EQUAL_IS_NULL);
+
+		PUSH(IMM(0));
+		CALL(MAKE_SOB_BOOL);
+		JUMP(AFTER_MAKE_BOOL_IS_NULL)
+L_EQUAL_IS_NULL:
+		PUSH(IMM(1))
+		CALL(MAKE_SOB_BOOL);
+AFTER_MAKE_BOOL_IS_NULL:
+		DROP(IMM(1));
+
+
+
+		POP(FP);
+		RETURN;
+		"))
+
+
+(define IS_NUMBER-code
+	(string-append
+		"
+		IS_NUMBER:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R0,FPARG(2)); //R0 GET THE OBJECT
+		CMP(IND(R0), T_INTEGER);
+		JUMP_EQ(L_EQUAL_IS_NUMBER);
+		CMP(IND(R0), T_FRACTION);
+		JUMP_EQ(L_EQUAL_IS_NUMBER);
+		PUSH(IMM(0));
+		CALL(MAKE_SOB_BOOL);
+		JUMP(AFTER_MAKE_BOOL_IS_NUMBER)
+L_EQUAL_IS_NUMBER:
+		PUSH(IMM(1))
+		CALL(MAKE_SOB_BOOL);
+AFTER_MAKE_BOOL_IS_NUMBER:
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+		"))
+
+
+(define IS_INTEGER-code
+	(string-append
+		"
+		IS_INTEGER:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R0,FPARG(2)); //R0 GET THE OBJECT
+		CMP(IND(R0), T_INTEGER);
+		JUMP_EQ(L_EQUAL_IS_INTEGER);
+		PUSH(IMM(0));
+		CALL(MAKE_SOB_BOOL);
+		JUMP(AFTER_MAKE_BOOL_IS_INTEGER)
+L_EQUAL_IS_INTEGER:
+		PUSH(IMM(1))
+		CALL(MAKE_SOB_BOOL);
+AFTER_MAKE_BOOL_IS_INTEGER:
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+		"))
+
+
+
+(define IS_STRING-code
+	(string-append
+		"
+		IS_STRING:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R0,FPARG(2));
+		CMP(IND(R0), T_STRING);
+		JUMP_NE(L_NOT_EQUAL_IS_STRING);
+		PUSH(IMM(1));
+		CALL(MAKE_SOB_BOOL);
+		JUMP(AFTER_MAKE_BOOL_IS_STRING)
+L_NOT_EQUAL_IS_STRING:
+		PUSH(IMM(0))
+		CALL(MAKE_SOB_BOOL);
+AFTER_MAKE_BOOL_IS_STRING:
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+		"))
+
+
+(define IS_BOOLEAN-code
+	(string-append
+		"
+		IS_BOOLEAN:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R0,FPARG(2));
+		CMP(IND(R0), T_BOOL);
+		JUMP_NE(L_NOT_EQUAL_T_BOOLEAN);
+		PUSH(IMM(1));
+		CALL(MAKE_SOB_BOOL);
+		JUMP(AFTER_MAKE_BOOL_T_BOOLEAN)
+L_NOT_EQUAL_T_BOOLEAN:
+		PUSH(IMM(0))
+		CALL(MAKE_SOB_BOOL);
+AFTER_MAKE_BOOL_T_BOOLEAN:
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+		"))
+
+(define IS_PAIR-code
+	(string-append
+		"
+		IS_PAIR:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R0,FPARG(2));
+		CMP(IND(R0), T_PAIR);
+		JUMP_NE(L_NOT_EQUAL_T_PAIR);
+		PUSH(IMM(1));
+		CALL(MAKE_SOB_BOOL);
+		JUMP(AFTER_MAKE_BOOL_T_PAIR)
+L_NOT_EQUAL_T_PAIR:
+		PUSH(IMM(0))
+		CALL(MAKE_SOB_BOOL);
+AFTER_MAKE_BOOL_T_PAIR:
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+		"))
+
+(define IS_CHAR-code
+	(string-append
+		"
+		IS_CHAR:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R0,FPARG(2));
+		CMP(IND(R0), T_CHAR);
+		JUMP_NE(L_NOT_EQUAL_T_CHAR);
+		PUSH(IMM(1));
+		CALL(MAKE_SOB_BOOL);
+		JUMP(AFTER_MAKE_BOOL_T_CHAR);
+L_NOT_EQUAL_T_CHAR:
+		PUSH(IMM(0));
+		CALL(MAKE_SOB_BOOL);
+AFTER_MAKE_BOOL_T_CHAR:
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+		"))
+
+(define eq?-code
+	(string-append
+		"
+		EQQ:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R0,FPARG(2));
+		MOV(R1,FPARG(3));
+		CMP(IND(R0), IND(R1));
+		JUMP_NE(L_IS_EQ_FALSE);
+		CMP(IND(R0), T_CHAR);
+		JUMP_EQ(L_COND_CHAR);
+		CMP(IND(R0), T_SYMBOL);
+		JUMP_EQ(L_COND_SYMBOL);
+		CMP(IND(R0), T_INTEGER);
+		JUMP_EQ(L_COND_INTEGER);
+		CMP(IND(R0), T_FRACTION);
+		JUMP_EQ(L_COND_FRACTION);
+		CMP(IND(R0),T_BOOL);
+		JUMP_EQ(L_COND_INTEGER);
+		CMP(IND(R0), T_VOID);
+		JUMP_EQ(L_IS_EQ_TRUE);
+		CMP(IND(R0), T_NIL);
+		JUMP_EQ(L_IS_EQ_TRUE);
+		JUMP(L_COND_OTHER);
+L_COND_CHAR:
+		CMP(INDD(R0,1), INDD(R1,1));
+		JUMP_EQ(L_IS_EQ_TRUE);
+		JUMP(L_IS_EQ_FALSE);
+L_COND_INTEGER:
+		CMP(INDD(R0,1), INDD(R1,1));
+		JUMP_EQ(L_IS_EQ_TRUE);
+		JUMP(L_IS_EQ_FALSE);
+L_COND_FRACTION:
+		MOV(R2,INDD(R0,1)); //GET RO NUMERATOR(INTEGER).
+		MOV(R3,INDD(R1,1)); //GET R1 NUMERATOR(INTEGER).
+		CMP(INDD(R2,1), INDD(R3,1)); //COMPARE BETWEEN THE NUMERATORS.
+		JUMP_NE(L_IS_EQ_FALSE);
+		MOV(R4,INDD(R0,2)); //GET RO DENOMINATOR(INTEGER).
+		MOV(R5,INDD(R1,2)); //GET R1 DENOMINATOR(INTEGER).
+		CMP(INDD(R4,1), INDD(R5,1)); //COMPARE BETWEEN THE DENOMINATORS.
+		JUMP_NE(L_IS_EQ_FALSE);
+		JUMP(L_IS_EQ_TRUE);
+L_COND_SYMBOL:
+
+		CMP(INDD(R0,1), INDD(R1,1));
+		JUMP_EQ(L_IS_EQ_TRUE);
+		JUMP(L_IS_EQ_FALSE);
+L_COND_OTHER:
+		CMP(R0,R1);
+		JUMP_EQ(L_IS_EQ_TRUE);
+		JUMP(L_IS_EQ_FALSE);
+L_IS_EQ_TRUE:
+		PUSH(IMM(1));
+		CALL(MAKE_SOB_BOOL);
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+L_IS_EQ_FALSE:
+		PUSH(IMM(0));
+		CALL(MAKE_SOB_BOOL);
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;				
+		"))
+
+(define IS_PROCEDURE-code
+	(string-append
+		"
+		IS_CLOSURE:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R0,FPARG(2));
+		CMP(IND(R0), T_CLOSURE);
+		JUMP_NE(L_NOT_EQUAL_T_CLOSURE);
+		PUSH(IMM(1));
+		CALL(MAKE_SOB_BOOL);
+		JUMP(AFTER_MAKE_BOOL_T_CLOSURE)
+L_NOT_EQUAL_T_CLOSURE:
+		PUSH(IMM(0))
+		CALL(MAKE_SOB_BOOL);
+AFTER_MAKE_BOOL_T_CLOSURE:
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+		"))
+
+
+(define IS_SYMBOL-code
+	(string-append
+		"
+		IS_SYMBOL:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R0,FPARG(2));
+		CMP(IND(R0), T_SYMBOL);
+		JUMP_NE(L_NOT_EQUAL_IS_SYMBOL);
+		PUSH(IMM(1));
+		CALL(MAKE_SOB_BOOL);
+		JUMP(AFTER_MAKE_BOOL_IS_SYMBOL)
+L_NOT_EQUAL_IS_SYMBOL:
+		PUSH(IMM(0))
+		CALL(MAKE_SOB_BOOL);
+AFTER_MAKE_BOOL_IS_SYMBOL:
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+		"))
+
+(define IS_VECTOR-code
+	(string-append
+		"
+		IS_VECTOR:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R0,FPARG(2));
+		CMP(IND(R0), T_VECTOR);
+		JUMP_NE(L_NOT_EQUAL_IS_VECTOR);
+		PUSH(IMM(1));
+		CALL(MAKE_SOB_BOOL);
+		JUMP(AFTER_MAKE_BOOL_IS_VECTOR)
+L_NOT_EQUAL_IS_VECTOR:
+		PUSH(IMM(0))
+		CALL(MAKE_SOB_BOOL);
+AFTER_MAKE_BOOL_IS_VECTOR:
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+		"))
+
+(define CHAR_TO_INTEGER-code
+	(string-append
+		"
+		CHAR_TO_INTEGER:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R0,FPARG(2));
+		MOV(R0,INDD(R0,1));
+		PUSH(R0);
+		CALL(MAKE_SOB_INTEGER);
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+		"))
+
+(define integer->char-code
+	(string-append
+		"
+		INTEGER_TO_CHAR:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R0,FPARG(2));
+		MOV(R0,INDD(R0,1));
+		PUSH(R0);
+		CALL(MAKE_SOB_CHAR);
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+		"))
+
+(define make-string-code
+	(string-append
+		"
+		MAKE_STRING:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R0,FPARG(1)); //NUMBER OF ARG
+		CMP(R0,IMM(2));
+		JUMP_EQ(MAKE_STRING_TWO_VAR);
+
+		//ONE-VAR
+		MOV(R0, FPARG(2)); //the sob_integer
+		MOV(R0,INDD(R0,1));//the number
+		MOV(R1, IMM(0));
+		MOV(R3,R0);
+		JUMP(MAKE_STRING_AFTER_MAKE_VAR);
+
+
+MAKE_STRING_TWO_VAR:
+		MOV(R0, FPARG(2));
+		MOV(R0,INDD(R0,1));
+		MOV(R1, FPARG(3));
+		MOV(R1,INDD(R1,1));
+		MOV(R3,R0);
+
+MAKE_STRING_AFTER_MAKE_VAR:
+		CMP(R0,IMM(0));
+		JUMP_EQ(MAKE_STRING_FINISH);
+
+		PUSH(R1);
+
+		DECR(R0);
+		JUMP(MAKE_STRING_AFTER_MAKE_VAR);
+
+
+MAKE_STRING_FINISH:
+		PUSH(R3);
+		CALL(MAKE_SOB_STRING);
+		INCR(R3);
+		DROP(R3);
+		POP(FP);
+		RETURN;		
+		"))
+
+(define string-length-code
+	(string-append
+		"
+		STRING_LENGTH:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R0,FPARG(2));
+		MOV(R0,INDD(R0,1));
+		PUSH(R0);
+		CALL(MAKE_SOB_INTEGER);
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+		"))
+
+(define vector-length-code
+	(string-append
+		"
+		VECTOR_LENGTH:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R0,FPARG(2));
+		MOV(R0,INDD(R0,1));
+		PUSH(R0);
+		CALL(MAKE_SOB_INTEGER);
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+		"))
+
+(define set-car!-code
+	(string-append
+		"
+		SET_CAR:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R1,FPARG(2));
+		MOV(R2,FPARG(3));
+		MOV(INDD(R1,1),R2);
+		MOV(R0,IMM(2));
+		POP(FP);
+		RETURN;
+		"))
+
+(define set-cdr!-code
+	(string-append
+		"
+		SET_CDR:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R1,FPARG(2));
+		MOV(R2,FPARG(3));
+		MOV(INDD(R1,2),R2);
+		MOV(R0,IMM(2));
+		POP(FP);
+		RETURN;
+		"))
+
+(define string-ref!-code
+	(string-append
+		"
+		STRING_REF:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R1,FPARG(2)); //GET THE STRING OBJECT.
+		MOV(R2,FPARG(3)); //GET THE NUMBER OBJECT.
+		ADD(R1,IMM(2));
+		MOV(R2,INDD(R2,1));
+		ADD(R1,R2);
+		MOV(R0,IND(R1));
+		PUSH(R0);
+		CALL(MAKE_SOB_CHAR);
+		DROP(IMM(1));
+		POP(FP);
+		RETURN;
+		"))
+
+(define string-set!-code
+	(string-append
+	"
+	STRING_SET:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R0,FPARG(2));
+		MOV(R1,FPARG(3));
+		MOV(R2,FPARG(4));
+		MOV(R1,INDD(R1,1));
+		ADD(R1,IMM(2));
+		MOV(R2,INDD(R2,1));
+		MOV(INDD(R0,R1),R2);
+		MOV(R0,IMM(2));
+		POP(FP);
+		RETURN;	
+		"))
+
+(define not-code
+	(string-append
+	"
+	NOT:
+		PUSH(FP);
+		MOV(FP,SP);
+		MOV(R1,FPARG(2)); //GET SOB-OBJECT.
+		PUSH(R1);
+		CALL(IS_SOB_BOOL); //CHECK IF THE OBJECT IS BOOL
+		DROP(IMM(1));
+		CMP(R0,IMM(1));
+		JUMP_NE(NOT_RETURN_FALSE); // IF THE OBJECT ISNT BOOL RETURN FALSE!
+		MOV(R1,INDD(R1,1));
+		CMP(R1,1);
+		JUMP_EQ(NOT_RETURN_FALSE); // IF THE OBJECT IS BOOL AND TRUE RETURN FALSE!
+NOT_RETURN_TRUE:		
+		PUSH(IMM(1));
+		CALL(MAKE_SOB_BOOL);
+		DROP(IMM(1));
+		JUMP(NOT_EXIT);
+NOT_RETURN_FALSE:
+		PUSH(IMM(0));
+		CALL(MAKE_SOB_BOOL);
+		DROP(IMM(1));
+NOT_EXIT:		
+		POP(FP);
+		RETURN;	
+		"))
+
+(define make-vector-code
+  (string-append "
+	MAKE_VECTOR:
+	PUSH(FP);
+	MOV(FP, SP);
+	MOV(R0, FPARG(1));	//R0 has number of arguments
+	CMP(R0, IMM(2));
+	JUMP_EQ(MAKE_VECTOR_TWO_VAR);
+	MAKE_VECTOR_ONE_VAR:
+	PUSH(IMM(0));
+	CALL(MAKE_SOB_INTEGER);
+	DROP(IMM(1));
+	MOV(R1, R0); // R1=INTEGER 0
+	MOV(R0, FPARG(2));
+	MOV(R0, INDD(R0, 1));
+	MOV(R3, R0);
+	JUMP(MAKE_VECTOR_MAKE_VECTOR);
+	MAKE_VECTOR_TWO_VAR:
+	MOV(R0, FPARG(2));
+	MOV(R0, INDD(R0, 1));
+	MOV(R1, FPARG(3));
+	//MOV(R1, INDD(R1, 1));
+	MOV(R3, R0);
+	MAKE_VECTOR_MAKE_VECTOR:
+	CMP(R0, IMM(0));
+	JUMP_EQ(MAKE_VECTOR_END);
+	PUSH(R1);
+	DECR(R0);
+	JUMP(MAKE_VECTOR_MAKE_VECTOR);
+	MAKE_VECTOR_END:
+	PUSH(R3);
+	CALL(MAKE_SOB_VECTOR);
+	INCR(R3);
+	DROP(R3);
+	POP(FP);
+	RETURN;
+"))
+
+(define vector-ref-code
+  (string-append
+  	"
+  	VECTOR_REF:
+  		PUSH(FP);
+  		MOV(FP,SP);
+  		MOV(R0,FPARG(3)); //THE REF NUMBER
+  		MOV(R1,FPARG(2)); //THE VECTOR OBJECT
+  		MOV(R0,INDD(R0,1));
+  		ADD(R0,IMM(2));
+  		MOV(R0,INDD(R1,R0));
+  		POP(FP);
+  		RETURN;
+
+
+"))
+
+(define vector-set!-code
+	(string-append "
+	VECTOR_SET:
+	PUSH(FP);
+	MOV(FP,SP);
+	MOV(R0, FPARG(2)); // the vecotor
+	MOV(R1, FPARG(3)); // the indext
+	MOV(R2, FPARG(4)); // the value
+	MOV(R1,(INDD(R1, IMM(1))));
+	ADD(R1, IMM(2));
+	MOV(INDD(R0,R1),R2);
+	MOV(R0,2);
+	POP(FP);
+	RETURN;
+"))
+
+(define string-to-symbol-code
+	(string-append "
+	STRING_TO_SYMBOL:
+	PUSH(FP);
+	MOV(FP,SP);
+	MOV(R1, FPARG(2)); // the STRING
+	MOV(R2, IND(1)); //THE SYMBOL LIST
+
+STRING_TO_SYMBOL_LOOP:
+	MOV(R3,IND(R2));
+
+	CMP(IND(R3), T_STRING);
+	JUMP_NE(STRING_TO_SYMBOL_FIRST_TIME);
+	CMP(INDD(R3,1), INDD(R1,1));
+	JUMP_NE(STRING_NEXT_ROUND);
+	MOV(R4,INDD(R3,1));
+	MOV(R5, IMM(2));
+STRING_TO_SYMBOL_DEEP_CHECK_LOOP:
+	
+	CMP(R4,IMM(0));
+	JUMP_EQ(STRING_TO_SYMBOL_SUCCEED_TO_FIND_LOOP);
+
+	CMP(INDD(R3,R5), INDD(R1,R5));
+	JUMP_NE(STRING_TO_SYMBOL_FAILED_TO_FIND_ADD_TO_LIST);
+	DECR(R4);
+	INCR(R5);
+	JUMP(STRING_TO_SYMBOL_DEEP_CHECK_LOOP);
+STRING_NEXT_ROUND:
+	CMP(INDD(R2,1), T_NIL); //CHECK IF WE FINISH THE LIST
+	JUMP_EQ(STRING_TO_SYMBOL_FAILED_TO_FIND_ADD_TO_LIST);
+
+	MOV(R2, INDD(R2,1));
+	JUMP(STRING_TO_SYMBOL_LOOP);
+
+STRING_TO_SYMBOL_SUCCEED_TO_FIND_LOOP:
+	PUSH(IMM(2));
+	CALL(MALLOC);
+	DROP(IMM(1));
+	MOV(IND(R0), T_SYMBOL);
+	MOV(INDD(R0,1), R3);
+	JUMP(STRING_TO_SYMBOL_EXIT_CODE);
+
+STRING_TO_SYMBOL_FAILED_TO_FIND_ADD_TO_LIST:
+	PUSH(IMM(2));
+	CALL(MALLOC);
+	DROP(IMM(1));
+
+	MOV(IND(R0), R1);
+	MOV(INDD(R0,1), T_NIL);
+	MOV(INDD(R2,1), R0);
+
+	PUSH(IMM(2));
+	CALL(MALLOC);
+	DROP(IMM(1));
+	MOV(IND(R0), T_SYMBOL);
+	MOV(INDD(R0,1), R1);
+	JUMP(STRING_TO_SYMBOL_EXIT_CODE);
+
+STRING_TO_SYMBOL_FIRST_TIME:
+	MOV(IND(R2), R1);
+	PUSH(IMM(2));
+	CALL(MALLOC);
+	DROP(IMM(1));
+	MOV(IND(R0), T_SYMBOL);
+	MOV(INDD(R0,1), R1);
+	JUMP(STRING_TO_SYMBOL_EXIT_CODE);
+
+STRING_TO_SYMBOL_EXIT_CODE:
+	POP(FP);
+	RETURN;
+	"))
+
+
+(define symbol-to-string-code
+	(string-append "
+	SYMBOL_TO_STRING:
+	PUSH(FP);
+	MOV(FP,SP);
+	MOV(R0, FPARG(2)); // the symbol
+	MOV(R0,INDD(R0,1));
+	POP(FP);
+	RETURN;"))
+
+
+(define numerator-code
+	(string-append "
+	NUMERATOR:
+	PUSH(FP);
+	MOV(FP,SP);
+
+	MOV(R0,FPARG(2));//GET THE FRACTION
+
+	CMP(IND(R0),T_FRACTION);//CHECK IF THE ARG IS A FRACTION
+	JUMP_EQ(NUMERATOR_FOR_FRACTION);
+	CMP(IND(R0),T_INTEGER);
+	JUMP_NE(L_NOT_FRACTION);
+	JUMP(NUMERATOR_FINISH);
+	NUMERATOR_FOR_FRACTION:
+		MOV(R0,INDD(R0,1)); // R0=  NUMERATOR
+		JUMP(NUMERATOR_FINISH);
+
+		NUMERATOR_FINISH:
+		POP(FP);
+		RETURN;"))
+
+(define denominator-code
+	(string-append "
+	DENOMINATOR:
+	PUSH(FP);
+	MOV(FP,SP);
+	MOV(R0,FPARG(2));//GET THE FRACTION
+	CMP(IND(R0),T_FRACTION);//CHECK IF THE ARG IS A FRACTION
+	JUMP_EQ(DENOMINATOR_FOR_FRACTION);
+	CMP(IND(R0),T_INTEGER);
+	JUMP_NE(L_NOT_FRACTION);
+	PUSH(IMM(1));
+	CALL(MAKE_SOB_INTEGER);
+	DROP(1);
+	JUMP (DENOMINATOR_FINISH);
+	DENOMINATOR_FOR_FRACTION:
+		MOV(R0,INDD(R0,2)); // R0=  DENOMINATOR
+		JUMP(DENOMINATOR_FINISH);
+
+	DENOMINATOR_FINISH:
+		POP(FP);
+		RETURN;"))
+
+(define is-rational-code
+	(string-append "
+	IS_RATIONAL:
+	RETURN;"))
+
+(define our-asm-code
+	(string-append "L_error_lambda_args_count:
+	OUT(2,IMM('E'));
+	OUT(2,IMM('R'));
+	OUT(2,IMM('R'));
+	OUT(2,IMM('O'));
+	OUT(2,IMM('R'));
+	OUT(2,IMM(' '));
+	OUT(2,IMM('I'));
+	OUT(2,IMM('N'));
+	OUT(2,IMM(' '));
+	OUT(2,IMM('A'));
+	OUT(2,IMM('R'));
+	OUT(2,IMM('G'));
+	OUT(2,IMM(' '));
+	OUT(2,IMM('N'));
+	OUT(2,IMM('U'));
+	OUT(2,IMM('M'));
+	OUT(2,IMM('B'));
+	OUT(2,IMM('E'));
+	OUT(2,IMM('R'));
+	OUT(2,IMM('\\n'));
+	HALT;
+copy_args_to_env:
+	
+RETURN;
+
+L_error_cannot_apply_non_clos:
+	OUT(2,IMM('E'));
+	OUT(2,IMM('R'));
+	OUT(2,IMM('R'));
+	OUT(2,IMM('O'));
+	OUT(2,IMM('R'));
+	OUT(2,IMM(' '));
+	OUT(2,IMM('I'));
+	OUT(2,IMM('N'));
+	OUT(2,IMM(' '));
+	OUT(2,IMM('A'));
+	OUT(2,IMM('P'));
+	OUT(2,IMM('P'));
+	OUT(2,IMM('L'));
+	OUT(2,IMM('I'));
+	OUT(2,IMM('C'));
+	OUT(2,IMM(' '));
+	OUT(2,IMM('N'));
+	OUT(2,IMM('O'));
+	OUT(2,IMM('N'));
+	OUT(2,IMM('P'));
+	OUT(2,IMM('R'));
+	OUT(2,IMM('O'));
+	OUT(2,IMM('C'));
+	OUT(2,IMM('E'));
+	OUT(2,IMM('D'));
+	OUT(2,IMM('U'));
+	OUT(2,IMM('R'));
+	OUT(2,IMM('E'));
+	OUT(2,IMM('\\n'));
+	HALT;
+
+L_OPT_NUMBER_OF_ARGS_ERROR:
+	OUT(2,IMM('E'));
+	OUT(2,IMM('R'));
+	OUT(2,IMM('R'));
+	OUT(2,IMM('O'));
+	OUT(2,IMM('R'));
+	OUT(2,IMM(' '));
+	OUT(2,IMM('I'));
+	OUT(2,IMM('N'));
+	OUT(2,IMM(' '));
+	OUT(2,IMM('A'));
+	OUT(2,IMM('R'));
+	OUT(2,IMM('G'));
+	OUT(2,IMM(' '));
+	OUT(2,IMM('N'));
+	OUT(2,IMM('U'));
+	OUT(2,IMM('M'));
+	OUT(2,IMM('B'));
+	OUT(2,IMM('E'));
+	OUT(2,IMM('R'));
+	OUT(2,IMM(' '));
+	OUT(2,IMM('O'));
+	OUT(2,IMM('P'));
+	OUT(2,IMM('T'));
+	OUT(2,IMM('\\n'));
+	HALT;
+
+
+  L_NOT_PAIR:
+	OUT(2,IMM('N'));
+	OUT(2,IMM('O'));
+	OUT(2,IMM('T'));
+	OUT(2,IMM(' '));
+	OUT(2,IMM('A'));
+	OUT(2,IMM(' '));
+	OUT(2,IMM('P'));
+	OUT(2,IMM('A'));
+	OUT(2,IMM('I'));
+	OUT(2,IMM('R'));
+	OUT(2,IMM('\\n'));
+	HALT;
+
+  L_NOT_FRACTION:
+ 	OUT(2,IMM('N'));
+	OUT(2,IMM('O'));
+	OUT(2,IMM('T'));
+	OUT(2,IMM(' '));
+	OUT(2,IMM('A'));
+	OUT(2,IMM(' '));
+	OUT(2,IMM('F'));
+	OUT(2,IMM('R'));
+	OUT(2,IMM('A'));
+	OUT(2,IMM('C'));
+	OUT(2,IMM('T'));
+	OUT(2,IMM('I'));
+	OUT(2,IMM('O'));
+	OUT(2,IMM('N'));
+	OUT(2,IMM('\\n'));
+	HALT;
+
+	MAKE_LIST:
+  PUSH(FP);
+  MOV(FP, SP);
+
+  // backup registers
+  PUSH(R1);
+  PUSH(R2);
+  PUSH(R3);
+  PUSH(R4);
+  PUSH(R5);
+
+  MOV(R0, SOB_NIL);
+  MOV(R1, FPARG(0)); //number of elements in the list
+
+  MAKE_LIST_LOOP:
+  CMP(R1, IMM(0));
+  JUMP_EQ(MAKE_LIST_CONTINUE);
+  PUSH(R0);
+  PUSH(FPARG(R1));
+  CALL(MAKE_SOB_PAIR);
+  DROP(2);
+  DECR(R1);
+  JUMP(MAKE_LIST_LOOP);
+
+  MAKE_LIST_CONTINUE:
+
+  // pop baced-up registers
+  POP(R5);
+  POP(R4);
+  POP(R3);
+  POP(R2);
+  POP(R1);
+
+  POP(FP);
+  RETURN;
+"))
